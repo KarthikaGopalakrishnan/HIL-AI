@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: hil-ai
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run server
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: LLM_URL
+        fromDatabase:
+          name: LLM_URL
+          property: connectionString
+        # Override with actual LLM endpoint in Render dashboard
+      - key: LLM_MODEL
+        value: llama3
