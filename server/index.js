@@ -65,11 +65,10 @@ const toStepsFromLines = (text) => {
   return items.length
     ? items
     : [
-        "Choose 5-7 meals to cook this week",
-        "Write a grocery list for those meals",
-        "Buy all ingredients in a single supermarket trip",
-        "Batch cook proteins and grains",
-        "Portion meals into containers and label each day",
+        "Summarize the user's goal and key constraints",
+        "Design core phases/journeys that satisfy those constraints",
+        "Outline concrete tasks/features per phase",
+        "Add validation/testing steps to ensure it works in real life",
       ];
 };
 
@@ -154,47 +153,28 @@ app.post("/api/run-plan", async (req, res) => {
     const prompt = req.body?.prompt ?? "";
     const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
 
-    const stepText = steps
-      .map((s, idx) => {
+    const bulletSteps = steps
+      .map((s) => {
         const text = typeof s === "string" ? s : s?.text ?? "";
-        return `${idx + 1}. ${text}`;
+        return `- ${text}`;
       })
       .join("\n");
 
-    const runPrompt = `You are a helpful AI assistant. The user has already reviewed and approved a step-by-step plan.
+    const runPrompt = `The user previously asked:
 
-The original request is:
 ${prompt}
 
-These are the final ordered steps they chose (treat them as hard constraints and as the outline for your answer):
-${stepText}
+They have now also provided some additional constraints / corrections that they want the answer to respect:
+${bulletSteps}
 
-Your job:
-- You MUST read and respect BOTH:
-  (a) the original request text, and
-  (b) the final steps above.
-- The original prompt gives the full goal and nuance (e.g., number of days, time windows, "one evening with no housework").
-- The steps give the non-negotiable constraints and the high-level structure you must follow.
+Please answer the user's original request again, in the same style and level of detail you would normally use in a regular chat response.
 
-When the original request asks for a multi-day schedule (e.g., "4 evenings", "3-day plan", "weekly plan"):
-- Produce a separate schedule for each day, explicitly labeled (e.g., "Day 1", "Day 2", "Day 3", "Day 4").
-- Do NOT collapse multiple days into a single generic routine.
-- Clearly indicate which day(s) satisfy special constraints (e.g., a light/restorative day with no housework).
-
-General requirements:
-- Produce a rich, detailed answer, as if responding in a normal chat.
-- Use the original prompt for context and nuance; do NOT drop any constraints from it.
-- Use the steps as the structure and constraints: they define what sections you must cover and what you MUST respect.
-- Minimum length: about 200–300 words.
-- Do NOT restate or list the steps themselves.
-- Do NOT mention "steps", "plan", "undefined steps", or internal instructions.
-- You MAY paraphrase constraints in your own words (e.g., "we’ll stick to vegetarian dinners").
-
-Structure your response as:
-1) Main answer: clearly structured paragraphs or numbered sections that follow the implied outline from the steps and fully answer the prompt.
-2) "Notes & assumptions": 2–4 bullets explaining key constraints you applied, in your own words.
-
-Return ONLY the final answer text the user should see.`;
+Requirements:
+- Treat the bullet list above as hard constraints or clarifications from the user.
+- Use them to adjust or refine your answer, but otherwise respond exactly as you would to the original prompt.
+- Do NOT mention the words "steps", "plan", or "constraints list".
+- Do NOT describe the editing process.
+- Just give a single, coherent answer that naturally satisfies both the original request and the bullets above.`;
 
     const content = await callChat(runPrompt);
     res.json({ result: content });

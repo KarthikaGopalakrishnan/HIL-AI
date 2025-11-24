@@ -25,16 +25,22 @@ function App() {
 
   type DisplayBlock =
     | { type: "paragraph"; text: string }
-    | { type: "list"; items: string[] };
+    | { type: "list"; items: string[] }
+    | { type: "section"; title: string; content: DisplayBlock[] };
 
   const toDisplayBlocks = (text: string): DisplayBlock[] => {
     const lines = text
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
+    
     const blocks: DisplayBlock[] = [];
     let currentList: string[] = [];
+    let currentSection: { title: string; lines: string[] } | null = null;
+    
     const bulletRegex = /^(\*|-|•|\d+[.)])/;
+    const sectionRegex = /^(Day \d+|Evening \d+|Phase \d+|Step \d+|Week \d+|Section \d+|Meal Prep|Breakfast|Lunch|Dinner|Key Decisions|Assumptions|Notes|Conclusion)[\s:]*(.*)$/i;
+    const keyDecisionsRegex = /^\*{2}(.*?)\*{2}$/;
 
     const flushList = () => {
       if (currentList.length) {
@@ -43,15 +49,70 @@ function App() {
       }
     };
 
+    const flushSection = () => {
+      if (currentSection) {
+        const sectionBlocks: DisplayBlock[] = [];
+        let sectionList: string[] = [];
+        
+        currentSection.lines.forEach((line) => {
+          if (bulletRegex.test(line)) {
+            sectionList.push(line.replace(bulletRegex, "").trim());
+          } else {
+            if (sectionList.length) {
+              sectionBlocks.push({ type: "list", items: sectionList });
+              sectionList = [];
+            }
+            if (line) {
+              sectionBlocks.push({ type: "paragraph", text: line });
+            }
+          }
+        });
+        
+        if (sectionList.length) {
+          sectionBlocks.push({ type: "list", items: sectionList });
+        }
+        
+        blocks.push({
+          type: "section",
+          title: currentSection.title,
+          content: sectionBlocks.length ? sectionBlocks : [{ type: "paragraph", text: "" }]
+        });
+        currentSection = null;
+      }
+    };
+
     lines.forEach((line) => {
-      if (bulletRegex.test(line)) {
-        currentList.push(line.replace(bulletRegex, "").trim());
-      } else {
+      const sectionMatch = line.match(sectionRegex);
+      
+      if (sectionMatch) {
         flushList();
-        blocks.push({ type: "paragraph", text: line });
+        flushSection();
+        currentSection = { title: sectionMatch[1], lines: [] };
+      } else if (currentSection) {
+        // Bold/emphasized lines like **Key Decisions & Assumptions**
+        if (keyDecisionsRegex.test(line)) {
+          flushList();
+          flushSection();
+          currentSection = { title: line.replace(/\*{2}/g, ""), lines: [] };
+        } else {
+          currentSection.lines.push(line);
+        }
+      } else {
+        // Not in a section
+        if (bulletRegex.test(line)) {
+          currentList.push(line.replace(bulletRegex, "").trim());
+        } else {
+          flushList();
+          if (line) {
+            blocks.push({ type: "paragraph", text: line });
+          }
+        }
       }
     });
+
     flushList();
+    flushSection();
+    
     return blocks.length ? blocks : [{ type: "paragraph", text }];
   };
 
@@ -344,7 +405,42 @@ function App() {
                 <div className="plan-result message assistant">
                   <div className="message-role">Assistant</div>
                   <div className="message-content">
-                    {planState.planResult}
+                    {planResultBlocks.map((block, idx) => {
+                      if (block.type === "paragraph") {
+                        return <p key={idx}>{block.text}</p>;
+                      } else if (block.type === "list") {
+                        return (
+                          <ul key={idx}>
+                            {block.items.map((item, itemIdx) => (
+                              <li key={itemIdx}>{item}</li>
+                            ))}
+                          </ul>
+                        );
+                      } else if (block.type === "section") {
+                        return (
+                          <div key={idx} className="result-section">
+                            <h4 className="section-title">{block.title}</h4>
+                            <div className="section-content">
+                              {block.content.map((subBlock, subIdx) => {
+                                if (subBlock.type === "paragraph") {
+                                  return <p key={subIdx}>{subBlock.text}</p>;
+                                } else if (subBlock.type === "list") {
+                                  return (
+                                    <ul key={subIdx}>
+                                      {subBlock.items.map((item, itemIdx) => (
+                                        <li key={itemIdx}>{item}</li>
+                                      ))}
+                                    </ul>
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 </div>
               </>
